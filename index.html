@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M3U8 Channel Search</title>
+<style>
+:root {
+  --bg: #0e0e16;
+  --surface: #16161f;
+  --card: #1e1e2e;
+  --card2: #252535;
+  --accent: #7c3aed;
+  --accent2: #a855f7;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+  --blue: #3b82f6;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --border: #2a2a3d;
+  --font: 'Segoe UI', system-ui, sans-serif;
+  --radius: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* HEADER */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex; align-items: center; gap: 14px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 4px 20px rgba(0,0,0,.5);
+}
+.logo { font-size: 1.2rem; font-weight: 800; color: var(--accent2); white-space: nowrap; }
+.logo span { color: var(--text-dim); font-weight: 400; font-size: .9rem; }
+
+.search-box {
+  flex: 1; max-width: 500px; position: relative;
+}
+.search-box input {
+  width: 100%;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 30px;
+  padding: 10px 18px 10px 44px;
+  color: var(--text); font-size: .95rem; outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.search-box input:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 3px rgba(168,85,247,.15);
+}
+.search-box .ico {
+  position: absolute; left: 15px; top: 50%;
+  transform: translateY(-50%); color: var(--text-dim); font-size: 1rem;
+}
+.search-clear {
+  position: absolute; right: 14px; top: 50%;
+  transform: translateY(-50%); color: var(--text-dim);
+  cursor: pointer; display: none; font-size: 1.1rem; line-height: 1;
+}
+.search-clear.show { display: block; }
+
+.header-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 10px; border: none;
+  font-family: var(--font); font-size: .83rem; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.btn:hover { opacity: .85; transform: translateY(-1px); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-ghost { background: transparent; border: 1.5px solid var(--border); color: var(--text-dim); }
+.btn-ghost:hover { border-color: var(--accent2); color: var(--text); }
+
+/* FILTERS */
+#filters {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+}
+.filter-label { font-size: .78rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; }
+.chip {
+  padding: 5px 14px; border-radius: 20px; font-size: .8rem; font-weight: 600;
+  cursor: pointer; border: 1.5px solid var(--border);
+  background: transparent; color: var(--text-dim); transition: all .15s;
+  font-family: var(--font);
+}
+.chip:hover { border-color: var(--accent2); color: var(--text); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+#filter-groups { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* STATS BAR */
+#stats-bar {
+  padding: 8px 20px;
+  display: flex; gap: 20px; align-items: center;
+  font-size: .8rem; color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.stat { display: flex; gap: 6px; align-items: center; }
+.stat b { color: var(--text); }
+.stat-dot { width: 7px; height: 7px; border-radius: 50%; }
+.dot-live { background: var(--green); animation: pulse 2s infinite; }
+.dot-all { background: var(--accent2); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* MAIN GRID */
+#main { padding: 20px; }
+
+#results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+/* CHANNEL CARD */
+.ch-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: box-shadow .2s, transform .2s, border-color .2s;
+  cursor: pointer;
+}
+.ch-card:hover {
+  box-shadow: 0 8px 30px rgba(124,58,237,.2);
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+.ch-top {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 14px 10px;
+}
+.ch-logo {
+  width: 48px; height: 48px; border-radius: 10px;
+  object-fit: contain; background: var(--card2);
+  border: 1px solid var(--border); flex-shrink: 0;
+}
+.ch-logo-fallback {
+  width: 48px; height: 48px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; flex-shrink: 0; color: #fff; font-weight: 700;
+}
+.ch-info { flex: 1; min-width: 0; }
+.ch-name {
+  font-weight: 700; font-size: .95rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ch-name mark {
+  background: rgba(168,85,247,.3); color: var(--accent2);
+  border-radius: 3px; padding: 0 2px;
+}
+.ch-meta { display: flex; gap: 8px; margin-top: 4px; align-items: center; }
+.badge {
+  font-size: .65rem; padding: 2px 8px; border-radius: 10px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+}
+.badge-live { background: rgba(34,197,94,.15); color: var(--green); }
+.badge-offline { background: rgba(239,68,68,.12); color: var(--red); }
+.badge-group { background: rgba(59,130,246,.12); color: var(--blue); }
+.badge-country { background: rgba(245,158,11,.12); color: var(--yellow); }
+
+.ch-url {
+  padding: 8px 14px 10px;
+  font-size: .72rem; color: var(--text-dim);
+  font-family: monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border-top: 1px solid var(--border);
+  background: rgba(0,0,0,.2);
+}
+
+.ch-actions {
+  display: flex; gap: 0;
+  border-top: 1px solid var(--border);
+}
+.ch-btn {
+  flex: 1; padding: 9px; border: none; background: transparent;
+  color: var(--text-dim); font-size: .78rem; font-weight: 600;
+  cursor: pointer; font-family: var(--font); transition: background .15s, color .15s;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.ch-btn:hover { background: var(--card2); color: var(--text); }
+.ch-btn + .ch-btn { border-left: 1px solid var(--border); }
+.ch-btn.play { color: var(--green); }
+.ch-btn.copy { color: var(--blue); }
+
+/* SERVERS EXPAND */
+.ch-servers {
+  display: none; padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: rgba(0,0,0,.15);
+  flex-direction: column; gap: 6px;
+}
+.ch-servers.open { display: flex; }
+.server-row {
+  display: flex; align-items: center; gap: 10px;
+  font-size: .78rem;
+}
+.server-name { color: var(--text-dim); width: 70px; flex-shrink: 0; }
+.server-url {
+  flex: 1; font-family: monospace; font-size: .72rem;
+  color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.server-url.empty { color: var(--text-dim); font-style: italic; }
+.server-copy {
+  background: var(--card2); border: none; border-radius: 6px;
+  padding: 3px 8px; font-size: .7rem; color: var(--text-dim);
+  cursor: pointer; font-family: var(--font); transition: all .15s;
+}
+.server-copy:hover { color: var(--blue); }
+
+/* EMPTY / LOADING */
+#empty-state {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-dim); display: none;
+}
+#empty-state h3 { font-size: 1.2rem; margin-top: 16px; color: var(--text); }
+#empty-state p { margin-top: 8px; font-size: .88rem; }
+
+#loading {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-dim); display: none;
+}
+.spinner {
+  width: 40px; height: 40px; margin: 0 auto;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent2);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* LOAD MORE */
+#load-more-wrap { text-align: center; padding: 24px; }
+
+/* WELCOME */
+#welcome {
+  text-align: center; padding: 80px 20px;
+}
+#welcome h2 { font-size: 1.6rem; font-weight: 800; color: var(--text); margin-top: 20px; }
+#welcome p { color: var(--text-dim); margin-top: 10px; font-size: .93rem; max-width: 400px; margin-inline: auto; }
+#welcome .drop-area {
+  margin: 30px auto; max-width: 400px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 40px 20px;
+  cursor: pointer; transition: all .2s;
+}
+#welcome .drop-area:hover { border-color: var(--accent2); background: rgba(124,58,237,.05); }
+#welcome .drop-area.drag-over { border-color: var(--accent2); background: rgba(124,58,237,.1); }
+
+/* TOAST */
+#toast {
+  position: fixed; bottom: 20px; right: 20px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 18px;
+  font-size: .85rem; box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  transform: translateY(60px); opacity: 0;
+  transition: all .3s cubic-bezier(.34,1.56,.64,1);
+  z-index: 999; display: flex; align-items: center; gap: 8px;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+
+/* DROP OVERLAY */
+#drop-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(124,58,237,.15); backdrop-filter: blur(6px);
+  border: 3px dashed var(--accent2); z-index: 1000;
+  align-items: center; justify-content: center;
+  font-size: 1.8rem; font-weight: 800; color: var(--accent2);
+  flex-direction: column; gap: 12px;
+}
+#drop-overlay.show { display: flex; }
+
+/* MODAL */
+#modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+  z-index: 200; align-items: center; justify-content: center; padding: 20px;
+}
+#modal-overlay.show { display: flex; }
+#modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); width: 100%; max-width: 520px;
+  max-height: 80vh; overflow-y: auto;
+}
+.modal-header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--border);
+}
+.modal-logo { width: 56px; height: 56px; border-radius: 12px; object-fit: contain; background: var(--card2); }
+.modal-title { font-size: 1.1rem; font-weight: 700; }
+.modal-close {
+  margin-left: auto; background: none; border: none;
+  color: var(--text-dim); font-size: 1.3rem; cursor: pointer;
+}
+.modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.modal-field label { font-size: .75rem; color: var(--text-dim); font-weight: 700; text-transform: uppercase; display: block; margin-bottom: 5px; }
+.modal-field input, .modal-field textarea {
+  width: 100%; background: var(--card); border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 9px 12px; color: var(--text);
+  font-family: monospace; font-size: .82rem; outline: none; resize: vertical;
+  transition: border-color .2s;
+}
+.modal-field input:focus, .modal-field textarea:focus { border-color: var(--accent2); }
+.modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+@media (max-width: 600px) {
+  header { flex-wrap: wrap; }
+  .header-right { width: 100%; justify-content: flex-end; }
+  #results-grid { grid-template-columns: 1fr; }
+  #filters { gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div id="drop-overlay">📂 JSON ফাইল এখানে ছেড়ে দিন</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">📺 M3U8<span> Search</span></div>
+  <div class="search-box">
+    <span class="ico">🔍</span>
+    <input type="text" id="q" placeholder="চ্যানেলের নাম বা গ্রুপ সার্চ করুন..." autocomplete="off" disabled>
+    <span class="search-clear" id="search-clear" onclick="clearSearch()">✕</span>
+  </div>
+  <div class="header-right">
+    <span id="header-file" style="font-size:.8rem; color:var(--text-dim); display:none"></span>
+    <button class="btn btn-ghost" onclick="triggerFile()">📂 JSON লোড</button>
+    <button class="btn btn-primary" id="btn-new" onclick="openNewModal()" style="display:none">＋ চ্যানেল</button>
+  </div>
+</header>
+
+<!-- FILTERS -->
+<div id="filters" style="display:none">
+  <span class="filter-label">দেশ:</span>
+  <div id="filter-countries" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+  <span class="filter-label" style="margin-left:10px">গ্রুপ:</span>
+  <div id="filter-groups"></div>
+</div>
+
+<!-- STATS -->
+<div id="stats-bar" style="display:none">
+  <div class="stat"><span class="stat-dot dot-all"></span> মোট <b id="s-total">0</b> চ্যানেল</div>
+  <div class="stat"><span class="stat-dot dot-live"></span> Live <b id="s-live">0</b></div>
+  <div class="stat" id="s-result-wrap">দেখাচ্ছে <b id="s-result">0</b></div>
+</div>
+
+<input type="file" id="file-input" accept=".json" style="display:none" onchange="handleFile(event)">
+
+<div id="main">
+  <!-- WELCOME -->
+  <div id="welcome">
+    <div style="font-size:4rem">📺</div>
+    <h2>M3U8 Channel Search</h2>
+    <p>আপনার JSON ফাইল লোড করুন। ২০,০০০+ চ্যানেলেও দ্রুত সার্চ করা যাবে।</p>
+    <div class="drop-area" id="drop-area" onclick="triggerFile()">
+      <div style="font-size:2.5rem">📂</div>
+      <div style="margin-top:12px; font-weight:600; color:var(--text)">JSON ফাইল টেনে এনে ছেড়ে দিন</div>
+      <div style="margin-top:6px; font-size:.85rem; color:var(--text-dim)">বা ক্লিক করুন</div>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div id="loading"><div class="spinner"></div><p style="margin-top:16px">লোড হচ্ছে...</p></div>
+
+  <!-- RESULTS -->
+  <div id="results-grid"></div>
+  <div id="empty-state">
+    <div style="font-size:3rem">🔍</div>
+    <h3>কোনো চ্যানেল পাওয়া যায়নি</h3>
+    <p>অন্য কীওয়ার্ড দিয়ে চেষ্টা করুন</p>
+  </div>
+  <div id="load-more-wrap" style="display:none">
+    <button class="btn btn-ghost" id="btn-load-more" onclick="loadMore()">আরও দেখুন (<span id="remaining">0</span>)</button>
+  </div>
+</div>
+
+<!-- MODAL (add/edit) -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal">
+    <div class="modal-header">
+      <img id="m-logo-img" class="modal-logo" src="" onerror="this.style.display='none'">
+      <div>
+        <div class="modal-title" id="m-title">নতুন চ্যানেল</div>
+        <div style="font-size:.8rem; color:var(--text-dim)" id="m-subtitle"></div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('show')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field"><label>চ্যানেলের নাম</label><input id="m-name" type="text"></div>
+      <div class="modal-field"><label>Main URL (m3u8)</label><input id="m-url" type="text"></div>
+      <div class="modal-field"><label>Logo URL</label><input id="m-logo" type="text" oninput="previewLogo()"></div>
+      <div class="modal-field"><label>Group</label><input id="m-group" type="text"></div>
+      <div class="modal-field"><label>Status</label>
+        <select id="m-status" style="width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:.85rem;outline:none;font-family:var(--font)">
+          <option value="live">live</option><option value="offline">offline</option>
+        </select>
+      </div>
+      <div class="modal-field"><label>Server 1 URL</label><input id="m-s1" type="text"></div>
+      <div class="modal-field"><label>Server 2 URL</label><input id="m-s2" type="text"></div>
+      <div class="modal-field"><label>Server 3 URL</label><input id="m-s3" type="text"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-overlay').classList.remove('show')">বাতিল</button>
+      <button class="btn btn-primary" onclick="saveChannel()">💾 সেভ</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"><span id="t-ico"></span><span id="t-msg"></span></div>
+
+<script>
+// ── STATE ──
+let allChannels = [];   // flat array: {_country, _path, ...channel}
+let filtered = [];
+let displayed = 0;
+const PAGE = 50;
+let activeCountry = 'all';
+let activeGroup = 'all';
+let searchQ = '';
+let editTarget = null;  // {country, groupName, idx}
+let rawData = null;
+const CACHE_KEY = 'm3u8_json_cache';
+const CACHE_META = 'm3u8_json_meta';
+
+// ── INIT ──
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    const meta = localStorage.getItem(CACHE_META);
+    if (cached) {
+      rawData = JSON.parse(cached);
+      const m = meta ? JSON.parse(meta) : {};
+      document.getElementById('header-file').textContent = m.fileName || 'cached.json';
+      processData(rawData);
+    }
+  } catch(e) {}
+
+  document.getElementById('q').addEventListener('input', debounce(doSearch, 200));
+  document.getElementById('q').addEventListener('input', () => {
+    document.getElementById('search-clear').classList.toggle('show', document.getElementById('q').value.length > 0);
+  });
+
+  // drag-drop on welcome
+  const da = document.getElementById('drop-area');
+  da.addEventListener('dragover', e => { e.preventDefault(); da.classList.add('drag-over'); });
+  da.addEventListener('dragleave', () => da.classList.remove('drag-over'));
+  da.addEventListener('drop', e => { e.preventDefault(); da.classList.remove('drag-over'); loadDroppedFile(e); });
+});
+
+document.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-overlay').classList.add('show'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.getElementById('drop-overlay').classList.remove('show'); });
+document.addEventListener('drop', e => { e.preventDefault(); document.getElementById('drop-overlay').classList.remove('show'); loadDroppedFile(e); });
+
+function loadDroppedFile(e) {
+  const file = e.dataTransfer?.files[0];
+  if (!file) return;
+  readFile(file);
+}
+
+// ── FILE LOAD ──
+function triggerFile() { document.getElementById('file-input').click(); }
+function handleFile(e) { const f = e.target.files[0]; if (f) readFile(f); e.target.value=''; }
+
+function readFile(file) {
+  showLoading(true);
+  document.getElementById('header-file').textContent = file.name;
+  document.getElementById('header-file').style.display = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      rawData = JSON.parse(ev.target.result);
+      saveCache(file.name);
+      processData(rawData);
+    } catch(e) {
+      showLoading(false);
+      toast('❌', 'অবৈধ JSON: ' + e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ── PROCESS ──
+function processData(data) {
+  allChannels = [];
+  // Structure: { Country: { Group: [ channel, ... ] } }
+  Object.entries(data).forEach(([country, groups]) => {
+    if (typeof groups !== 'object') return;
+    Object.entries(groups).forEach(([groupName, channels]) => {
+      if (!Array.isArray(channels)) return;
+      channels.forEach((ch, idx) => {
+        allChannels.push({ ...ch, _country: country, _group: groupName, _idx: idx });
+      });
+    });
+  });
+
+  buildFilters();
+  showUI();
+  applyFilters();
+  showLoading(false);
+  toast('✅', `${allChannels.length.toLocaleString()} চ্যানেল লোড হয়েছে`);
+}
+
+function buildFilters() {
+  const countries = [...new Set(allChannels.map(c => c._country))];
+  const groups = [...new Set(allChannels.map(c => c._group))];
+
+  const cf = document.getElementById('filter-countries');
+  cf.innerHTML = makeChip('all', 'সব', 'country') +
+    countries.map(c => makeChip(c, c, 'country')).join('');
+
+  const gf = document.getElementById('filter-groups');
+  gf.innerHTML = makeChip('all', 'সব', 'group') +
+    groups.map(g => makeChip(g, g, 'group')).join('');
+
+  cf.querySelectorAll('.chip').forEach(el => el.addEventListener('click', () => {
+    activeCountry = el.dataset.val;
+    cf.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    activeGroup = 'all';
+    document.getElementById('filter-groups').querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+    document.getElementById('filter-groups').querySelector('[data-val="all"]').classList.add('active');
+    applyFilters();
+  }));
+
+  gf.querySelectorAll('.chip').forEach(el => el.addEventListener('click', () => {
+    activeGroup = el.dataset.val;
+    gf.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    applyFilters();
+  }));
+}
+
+function makeChip(val, label, type) {
+  const active = (type === 'country' ? activeCountry : activeGroup) === val ? 'active' : '';
+  return `<button class="chip ${active}" data-val="${esc(val)}">${esc(label)}</button>`;
+}
+
+function showUI() {
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('filters').style.display = 'flex';
+  document.getElementById('stats-bar').style.display = 'flex';
+  document.getElementById('btn-new').style.display = '';
+  document.getElementById('q').disabled = false;
+  const live = allChannels.filter(c => c.status === 'live').length;
+  document.getElementById('s-total').textContent = allChannels.length.toLocaleString();
+  document.getElementById('s-live').textContent = live.toLocaleString();
+}
+
+// ── FILTER + SEARCH ──
+function doSearch() {
+  searchQ = document.getElementById('q').value.trim().toLowerCase();
+  applyFilters();
+}
+
+function applyFilters() {
+  filtered = allChannels.filter(ch => {
+    if (activeCountry !== 'all' && ch._country !== activeCountry) return false;
+    if (activeGroup !== 'all' && ch._group !== activeGroup) return false;
+    if (!searchQ) return true;
+    return (ch.name || '').toLowerCase().includes(searchQ) ||
+           (ch._group || '').toLowerCase().includes(searchQ) ||
+           (ch._country || '').toLowerCase().includes(searchQ) ||
+           (ch.url || '').toLowerCase().includes(searchQ);
+  });
+
+  document.getElementById('s-result').textContent = filtered.length.toLocaleString();
+  displayed = 0;
+  document.getElementById('results-grid').innerHTML = '';
+  renderChunk();
+
+  document.getElementById('empty-state').style.display = filtered.length === 0 ? 'block' : 'none';
+}
+
+function renderChunk() {
+  const grid = document.getElementById('results-grid');
+  const slice = filtered.slice(displayed, displayed + PAGE);
+  slice.forEach(ch => grid.appendChild(makeCard(ch)));
+  displayed += slice.length;
+
+  const remaining = filtered.length - displayed;
+  const wrap = document.getElementById('load-more-wrap');
+  if (remaining > 0) {
+    wrap.style.display = 'block';
+    document.getElementById('remaining').textContent = remaining.toLocaleString();
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function loadMore() { renderChunk(); }
+
+// ── CARD ──
+function makeCard(ch) {
+  const div = document.createElement('div');
+  div.className = 'ch-card';
+
+  const name = highlight(ch.name || 'অজানা');
+  const isLive = ch.status === 'live';
+  const servers = (ch.servers || []).filter(s => s.url);
+  const hasServers = ch.servers && ch.servers.length > 0;
+
+  const logoHTML = ch.logo
+    ? `<img class="ch-logo" src="${esc(ch.logo)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy">
+       <div class="ch-logo-fallback" style="display:none">${(ch.name||'?')[0].toUpperCase()}</div>`
+    : `<div class="ch-logo-fallback">${(ch.name||'?')[0].toUpperCase()}</div>`;
+
+  const serverRows = hasServers ? (ch.servers || []).map(s => `
+    <div class="server-row">
+      <span class="server-name">${esc(s.name)}</span>
+      <span class="server-url ${s.url ? '' : 'empty'}">${s.url ? esc(s.url) : 'খালি'}</span>
+      ${s.url ? `<button class="server-copy" onclick="copyText('${esc(s.url)}', event)">কপি</button>` : ''}
+    </div>`).join('') : '';
+
+  const cardId = 'card-' + Math.random().toString(36).slice(2);
+
+  div.innerHTML = `
+    <div class="ch-top">
+      ${logoHTML}
+      <div class="ch-info">
+        <div class="ch-name">${name}</div>
+        <div class="ch-meta">
+          <span class="badge ${isLive ? 'badge-live' : 'badge-offline'}">${isLive ? '● Live' : '○ Offline'}</span>
+          <span class="badge badge-group">${esc(ch._group)}</span>
+          <span class="badge badge-country">${esc(ch._country)}</span>
+        </div>
+      </div>
+    </div>
+    <div class="ch-url" title="${esc(ch.url||'')}">🔗 ${esc(ch.url || 'URL নেই')}</div>
+    <div class="ch-actions">
+      <button class="ch-btn copy" onclick="copyText('${esc(ch.url||'')}', event)">📋 URL কপি</button>
+      ${hasServers ? `<button class="ch-btn" onclick="toggleServers('${cardId}')">⚙ Servers</button>` : ''}
+      <button class="ch-btn" onclick="openEdit(${JSON.stringify(ch).replace(/"/g,'&quot;')})">✎ Edit</button>
+    </div>
+    ${hasServers ? `<div class="ch-servers" id="${cardId}">${serverRows}</div>` : ''}
+  `;
+  return div;
+}
+
+function highlight(text) {
+  if (!searchQ) return esc(text);
+  const idx = text.toLowerCase().indexOf(searchQ);
+  if (idx === -1) return esc(text);
+  return esc(text.slice(0, idx)) +
+    `<mark>${esc(text.slice(idx, idx + searchQ.length))}</mark>` +
+    esc(text.slice(idx + searchQ.length));
+}
+
+function toggleServers(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+// ── COPY ──
+function copyText(url, e) {
+  e.stopPropagation();
+  navigator.clipboard.writeText(url).then(() => toast('📋', 'কপি হয়েছে!'));
+}
+
+// ── ADD / EDIT MODAL ──
+function openNewModal() {
+  editTarget = null;
+  document.getElementById('m-title').textContent = 'নতুন চ্যানেল';
+  document.getElementById('m-subtitle').textContent = '';
+  ['m-name','m-url','m-logo','m-group','m-s1','m-s2','m-s3'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('m-status').value = 'live';
+  document.getElementById('m-logo-img').src = '';
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function openEdit(ch) {
+  editTarget = ch;
+  document.getElementById('m-title').textContent = 'চ্যানেল সম্পাদনা';
+  document.getElementById('m-subtitle').textContent = ch._country + ' / ' + ch._group;
+  document.getElementById('m-name').value = ch.name || '';
+  document.getElementById('m-url').value = ch.url || '';
+  document.getElementById('m-logo').value = ch.logo || '';
+  document.getElementById('m-group').value = ch._group || '';
+  document.getElementById('m-status').value = ch.status || 'live';
+  const s = ch.servers || [];
+  document.getElementById('m-s1').value = s[0]?.url || '';
+  document.getElementById('m-s2').value = s[1]?.url || '';
+  document.getElementById('m-s3').value = s[2]?.url || '';
+  document.getElementById('m-logo-img').src = ch.logo || '';
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function previewLogo() {
+  document.getElementById('m-logo-img').src = document.getElementById('m-logo').value;
+}
+
+function saveChannel() {
+  const name = document.getElementById('m-name').value.trim();
+  const url = document.getElementById('m-url').value.trim();
+  const logo = document.getElementById('m-logo').value.trim();
+  const group = document.getElementById('m-group').value.trim() || 'General';
+  const status = document.getElementById('m-status').value;
+  const s1 = document.getElementById('m-s1').value.trim();
+  const s2 = document.getElementById('m-s2').value.trim();
+  const s3 = document.getElementById('m-s3').value.trim();
+
+  if (!name) { toast('⚠', 'নাম দিন'); return; }
+
+  const ch = {
+    name, logo, group, url, status,
+    servers: [
+      { name: 'Server 1', url: s1 },
+      { name: 'Server 2', url: s2 },
+      { name: 'Server 3', url: s3 },
+    ]
+  };
+
+  // determine country
+  const country = editTarget ? editTarget._country : (activeCountry !== 'all' ? activeCountry : 'General');
+
+  if (!rawData[country]) rawData[country] = {};
+  if (!rawData[country][group]) rawData[country][group] = [];
+
+  if (editTarget) {
+    // find and replace
+    const arr = rawData[editTarget._country][editTarget._group];
+    const i = arr.findIndex(x => x.name === editTarget.name && x.url === editTarget.url);
+    if (i !== -1) arr.splice(i, 1, ch);
+    else rawData[country][group].push(ch);
+  } else {
+    rawData[country][group].push(ch);
+  }
+
+  saveCache(document.getElementById('header-file').textContent || 'data.json');
+  processData(rawData);
+  document.getElementById('modal-overlay').classList.remove('show');
+  toast('💾', editTarget ? 'আপডেট হয়েছে' : 'চ্যানেল যোগ হয়েছে');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('show');
+}
+
+// ── CLEAR SEARCH ──
+function clearSearch() {
+  document.getElementById('q').value = '';
+  document.getElementById('search-clear').classList.remove('show');
+  searchQ = '';
+  applyFilters();
+}
+
+// ── CACHE ──
+function saveCache(fileName) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(rawData));
+    localStorage.setItem(CACHE_META, JSON.stringify({ fileName, savedAt: Date.now() }));
+  } catch(e) {
+    if (e.name === 'QuotaExceededError') toast('⚠', 'ক্যাশ পূর্ণ — ফাইল বড়, সেভ হয়নি');
+  }
+}
+
+window.addEventListener('beforeunload', () => { if (rawData) saveCache(document.getElementById('header-file').textContent || 'data.json'); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && rawData) saveCache(document.getElementById('header-file').textContent || 'data.json'); });
+
+// ── HELPERS ──
+function showLoading(v) {
+  document.getElementById('loading').style.display = v ? 'block' : 'none';
+  if (v) {
+    document.getElementById('welcome').style.display = 'none';
+    document.getElementById('results-grid').innerHTML = '';
+  }
+}
+
+let _tt;
+function toast(ico, msg) {
+  document.getElementById('t-ico').textContent = ico;
+  document.getElementById('t-msg').textContent = msg;
+  const el = document.getElementById('toast');
+  el.classList.add('show');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+</script>
+</body>
+  </html>
