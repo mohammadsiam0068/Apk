@@ -371,7 +371,6 @@ header {
 
 <div id="drop-overlay">📂 JSON ফাইল এখানে ছেড়ে দিন</div>
 
-<!-- HEADER -->
 <header>
   <div class="logo">📺 M3U8<span> Search</span></div>
   <div class="search-box">
@@ -381,13 +380,13 @@ header {
   </div>
   <div class="header-right">
     <span id="header-file" style="font-size:.8rem; color:var(--text-dim); display:none"></span>
-    <button class="btn btn-ghost" onclick="openPaste()">📋 পেস্ট করুন</button>
+    <button class="btn btn-ghost" onclick="openPaste()">📋 লোড / পেস্ট</button>
     <button class="btn btn-ghost" onclick="triggerFile()">📂 ফাইল লোড</button>
+    <button class="btn btn-primary" id="btn-download" onclick="downloadJSON()" style="display:none; background:var(--green)">⬇ JSON সেভ</button>
     <button class="btn btn-primary" id="btn-new" onclick="openNewModal()" style="display:none">＋ চ্যানেল</button>
   </div>
 </header>
 
-<!-- FILTERS -->
 <div id="filters" style="display:none">
   <span class="filter-label">দেশ:</span>
   <div id="filter-countries" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
@@ -395,7 +394,6 @@ header {
   <div id="filter-groups"></div>
 </div>
 
-<!-- STATS -->
 <div id="stats-bar" style="display:none">
   <div class="stat"><span class="stat-dot dot-all"></span> মোট <b id="s-total">0</b> চ্যানেল</div>
   <div class="stat"><span class="stat-dot dot-live"></span> Live <b id="s-live">0</b></div>
@@ -405,11 +403,10 @@ header {
 <input type="file" id="file-input" accept=".json" style="display:none" onchange="handleFile(event)">
 
 <div id="main">
-  <!-- WELCOME -->
   <div id="welcome">
     <div style="font-size:4rem">📺</div>
     <h2>M3U8 Channel Search</h2>
-    <p>আপনার JSON ফাইল লোড করুন। ২০,০০০+ চ্যানেলেও দ্রুত সার্চ করা যাবে।</p>
+    <p>আপনার JSON বা M3U8 ফাইল/লিংক লোড করুন। ২০,০০০+ চ্যানেলেও দ্রুত সার্চ করা যাবে এবং এডিট করে JSON ডাউনলোড করা যাবে।</p>
     <div class="drop-area" id="drop-area" onclick="triggerFile()">
       <div style="font-size:2.5rem">📂</div>
       <div style="margin-top:12px; font-weight:600; color:var(--text)">JSON ফাইল টেনে এনে ছেড়ে দিন</div>
@@ -417,10 +414,8 @@ header {
     </div>
   </div>
 
-  <!-- LOADING -->
   <div id="loading"><div class="spinner"></div><p style="margin-top:16px">লোড হচ্ছে...</p></div>
 
-  <!-- RESULTS -->
   <div id="results-grid"></div>
   <div id="empty-state">
     <div style="font-size:3rem">🔍</div>
@@ -432,7 +427,6 @@ header {
   </div>
 </div>
 
-<!-- MODAL (add/edit) -->
 <div id="modal-overlay" onclick="closeModal(event)">
   <div id="modal">
     <div class="modal-header">
@@ -464,16 +458,16 @@ header {
   </div>
 </div>
 
-<!-- PASTE MODAL -->
 <div id="paste-overlay" onclick="closePasteOutside(event)">
   <div id="paste-box">
     <div class="paste-header">
-      <h3>📋 ডেটা পেস্ট করুন</h3>
+      <h3>📋 ডেটা লোড করুন</h3>
       <button class="modal-close" onclick="closePaste()">✕</button>
     </div>
     <div class="paste-tabs">
       <button class="paste-tab active" id="tab-json" onclick="switchTab('json')">{ } JSON পেস্ট</button>
       <button class="paste-tab" id="tab-m3u8" onclick="switchTab('m3u8')"># M3U8 পেস্ট</button>
+      <button class="paste-tab" id="tab-link" onclick="switchTab('link')">🔗 M3U8 লিংক</button>
     </div>
     <div class="paste-body">
       <div id="hint-json" class="paste-hint">
@@ -483,6 +477,9 @@ header {
         M3U8 playlist পেস্ট করুন। <code>#EXTM3U</code> দিয়ে শুরু হওয়া যেকোনো ফরম্যাট চলবে।<br>
         <code>#EXTINF:-1 tvg-name="..." group-title="..." tvg-logo="...",Channel Name</code><br>
         <code>https://example.com/stream.m3u8</code>
+      </div>
+      <div id="hint-link" class="paste-hint" style="display:none">
+        যেকোনো M3U8 ফাইলের ডাইরেক্ট লিংক পেস্ট করুন। <code>https://example.com/playlist.m3u8</code>
       </div>
       <textarea id="paste-textarea" placeholder="এখানে পেস্ট করুন (Ctrl+V)..."></textarea>
     </div>
@@ -567,10 +564,22 @@ function readFile(file) {
   reader.readAsText(file);
 }
 
+// ── DOWNLOAD JSON ──
+function downloadJSON() {
+  if (!rawData) { toast('⚠', 'ডাউনলোড করার মতো কোনো ডেটা নেই'); return; }
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(rawData, null, 2));
+  const a = document.createElement('a');
+  a.setAttribute("href", dataStr);
+  a.setAttribute("download", "m3u8_playlist.json");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast('✅', 'JSON ফাইল ডাউনলোড শুরু হয়েছে');
+}
+
 // ── PROCESS ──
 function processData(data) {
   allChannels = [];
-  // Structure: { Country: { Group: [ channel, ... ] } }
   Object.entries(data).forEach(([country, groups]) => {
     if (typeof groups !== 'object') return;
     Object.entries(groups).forEach(([groupName, channels]) => {
@@ -628,6 +637,7 @@ function showUI() {
   document.getElementById('filters').style.display = 'flex';
   document.getElementById('stats-bar').style.display = 'flex';
   document.getElementById('btn-new').style.display = '';
+  document.getElementById('btn-download').style.display = ''; // Show Download Button
   document.getElementById('q').disabled = false;
   const live = allChannels.filter(c => c.status === 'live').length;
   document.getElementById('s-total').textContent = allChannels.length.toLocaleString();
@@ -860,17 +870,26 @@ function switchTab(tab) {
   pasteTab = tab;
   document.getElementById('tab-json').classList.toggle('active', tab === 'json');
   document.getElementById('tab-m3u8').classList.toggle('active', tab === 'm3u8');
+  document.getElementById('tab-link').classList.toggle('active', tab === 'link');
+  
   document.getElementById('hint-json').style.display = tab === 'json' ? '' : 'none';
   document.getElementById('hint-m3u8').style.display = tab === 'm3u8' ? '' : 'none';
-  document.getElementById('paste-textarea').placeholder =
-    tab === 'json' ? 'JSON এখানে পেস্ট করুন (Ctrl+V)...' : '#EXTM3U\n#EXTINF:-1 tvg-name="Channel" group-title="Group",Channel Name\nhttps://example.com/stream.m3u8';
+  document.getElementById('hint-link').style.display = tab === 'link' ? '' : 'none';
+  
+  if (tab === 'json') {
+      document.getElementById('paste-textarea').placeholder = 'JSON এখানে পেস্ট করুন (Ctrl+V)...';
+  } else if (tab === 'm3u8') {
+      document.getElementById('paste-textarea').placeholder = '#EXTM3U\n#EXTINF:-1 tvg-name="Channel" group-title="Group",Channel Name\nhttps://example.com/stream.m3u8';
+  } else {
+      document.getElementById('paste-textarea').placeholder = 'এখানে ডাইরেক্ট M3U8 লিংক দিন (যেমন: https://example.com/playlist.m3u8)';
+  }
   document.getElementById('paste-textarea').value = '';
   document.getElementById('paste-status').textContent = '';
 }
 
 function applyPaste() {
   const text = document.getElementById('paste-textarea').value.trim();
-  if (!text) { toast('⚠', 'কিছু পেস্ট করুন'); return; }
+  if (!text) { toast('⚠', 'কিছু দিন'); return; }
 
   const statusEl = document.getElementById('paste-status');
 
@@ -880,7 +899,6 @@ function applyPaste() {
     try {
       rawData = JSON.parse(fixed);
     } catch(e1) {
-      // Auto-fix common JSON mistakes
       fixed = autoFixJSON(text);
       wasFixed = true;
       try {
@@ -897,8 +915,7 @@ function applyPaste() {
     processData(rawData);
     closePaste();
     toast('✅', wasFixed ? 'ছোট ভুল ঠিক করে লোড হয়েছে ✓' : 'JSON লোড হয়েছে');
-  } else {
-    // Parse M3U8
+  } else if (pasteTab === 'm3u8') {
     try {
       const parsed = parseM3U8(text);
       const total = Object.values(parsed).flatMap(g => Object.values(g)).flat().length;
@@ -914,47 +931,61 @@ function applyPaste() {
       statusEl.style.color = 'var(--red)';
       statusEl.textContent = '❌ পার্স করা যায়নি: ' + e.message;
     }
+  } else if (pasteTab === 'link') {
+    const url = text;
+    if (!url.startsWith('http')) { statusEl.style.color='var(--red)'; statusEl.textContent='❌ সঠিক http/https লিংক দিন'; return; }
+    
+    closePaste();
+    showLoading(true);
+    
+    // Using a proxy to avoid CORS issues commonly found with external m3u8 files
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+
+    fetch(proxyUrl)
+      .then(res => {
+          if (!res.ok) throw new Error('Network response was not ok');
+          return res.text();
+      })
+      .then(m3u8Text => {
+        const parsed = parseM3U8(m3u8Text);
+        const total = Object.values(parsed).flatMap(g => Object.values(g)).flat().length;
+        if (total === 0) throw new Error('কোনো চ্যানেল পাওয়া যায়নি বা ভুল লিংক');
+        
+        rawData = parsed;
+        saveCache('link_playlist.m3u8');
+        try {
+            document.getElementById('header-file').textContent = new URL(url).hostname;
+        } catch(e) {
+            document.getElementById('header-file').textContent = 'M3U8 Link';
+        }
+        document.getElementById('header-file').style.display = '';
+        processData(rawData);
+        toast('✅', `${total} চ্যানেল লোড হয়েছে`);
+      })
+      .catch(e => {
+        showLoading(false);
+        toast('❌', 'লিংক লোড করা যায়নি: ' + e.message);
+      });
   }
 }
 
 function autoFixJSON(text) {
   let s = text;
-
-  // 1. Remove BOM
   s = s.replace(/^\uFEFF/, '');
-
-  // 2. Remove JS-style comments  // ...  and /* ... */
   s = s.replace(/\/\/[^\n]*/g, '');
   s = s.replace(/\/\*[\s\S]*?\*\//g, '');
-
-  // 3. Replace smart/curly quotes with straight quotes
   s = s.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
-
-  // 4. Fix trailing commas before ] or }
   s = s.replace(/,\s*([}\]])/g, '$1');
-
-  // 5. Fix missing commas between } { or ] [
   s = s.replace(/}\s*{/g, '},{');
   s = s.replace(/]\s*\[/g, '],[');
   s = s.replace(/}\s*\[/g, '},[');
   s = s.replace(/]\s*{/g, '],{');
-
-  // 6. Unquoted keys → quoted keys  (e.g.  name: "foo" → "name": "foo")
   s = s.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
-
-  // 7. Single-quoted strings → double-quoted
   s = s.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
-
-  // 8. Remove trailing comma after last property (again, after fixes above)
   s = s.replace(/,\s*([}\]])/g, '$1');
-
-  // 9. Fix undefined → null
   s = s.replace(/:\s*undefined/g, ':null');
-
-  // 10. Fix NaN / Infinity → null
   s = s.replace(/:\s*NaN/g, ':null');
   s = s.replace(/:\s*Infinity/g, ':null');
-
   return s;
 }
 
@@ -966,12 +997,10 @@ function parseM3U8(text) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.startsWith('#EXTINF')) {
-      // Parse attributes
       const nameMatch = line.match(/tvg-name="([^"]*)"/);
       const logoMatch = line.match(/tvg-logo="([^"]*)"/);
       const groupMatch = line.match(/group-title="([^"]*)"/);
       const countryMatch = line.match(/tvg-country="([^"]*)"/);
-      // Name after last comma
       const commaIdx = line.lastIndexOf(',');
       const displayName = commaIdx >= 0 ? line.slice(commaIdx + 1).trim() : '';
 
